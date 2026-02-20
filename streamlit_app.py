@@ -2,103 +2,99 @@ import streamlit as st
 import numpy as np
 import matplotlib.pyplot as plt
 import time
+from sklearn.datasets import make_regression
 
-# -------------------------------
+# ---------------------------------
 # Page config
-# -------------------------------
-st.set_page_config(
-    page_title="Gradient Descent Line Evolution",
-    layout="wide"
-)
+# ---------------------------------
+st.set_page_config(layout="wide")
+st.title("Gradient Descent Line Animation (Epoch by Epoch)")
 
-st.title("📉 Gradient Descent: Line Evolution Demo")
-st.markdown(
-    """
-    This demo shows **how a regression line evolves from an initial guess (m₀, b₀)**
-    into the optimal regression line using Gradient Descent.
-    """
-)
+st.markdown("""
+This demo shows **how the regression line evolves after every update of**
+**m (slope)** and **b (intercept)** using Gradient Descent.
+""")
 
-# -------------------------------
+# ---------------------------------
 # Sidebar controls
-# -------------------------------
-st.sidebar.header("⚙️ Controls")
+# ---------------------------------
+st.sidebar.header("Controls")
 
 gd_type = st.sidebar.selectbox(
     "Gradient Descent Type",
-    ["Batch", "Mini-Batch", "Stochastic"]
+    ["Batch", "Stochastic", "Mini-Batch"]
 )
 
-learning_rate = st.sidebar.slider("Learning Rate (η)", 0.001, 0.1, 0.01)
-epochs = st.sidebar.slider("Epochs", 10, 200, 60)
+lr = st.sidebar.slider("Learning Rate (η)", 0.0001, 0.05, 0.01)
+epochs = st.sidebar.slider("Epochs", 1, 100, 30)
 
 batch_size = st.sidebar.slider(
     "Mini-Batch Size",
-    2, 20, 5,
+    2, 20, 10,
     disabled=(gd_type != "Mini-Batch")
 )
 
-# Initial parameters
-st.sidebar.subheader("Initial Line Parameters")
-m = st.sidebar.slider("Initial slope (m₀)", -10.0, 10.0, -5.0)
-b = st.sidebar.slider("Initial intercept (b₀)", -10.0, 10.0, 8.0)
+st.sidebar.subheader("Initial Line")
+m = st.sidebar.slider("Initial m", -50.0, 50.0, -30.0)
+b = st.sidebar.slider("Initial b", -200.0, 200.0, -100.0)
 
-run = st.sidebar.button("▶ Start Animation")
+run = st.sidebar.button("▶ Run Gradient Descent")
 
-# -------------------------------
-# Generate dataset
-# -------------------------------
-np.random.seed(42)
-X = np.linspace(0, 10, 50)
-true_m = 2.5
-true_b = 3.0
-y = true_m * X + true_b + np.random.randn(50)
+# ---------------------------------
+# Dataset (EXACTLY as requested)
+# ---------------------------------
+X, y = make_regression(
+    n_samples=100,
+    n_features=1,
+    n_informative=1,
+    n_targets=1,
+    noise=20,
+    random_state=13
+)
 
+X = X.flatten()
+y = y.flatten()
 n = len(X)
 
-# -------------------------------
+# ---------------------------------
 # Loss function
-# -------------------------------
+# ---------------------------------
 def mse(y_true, y_pred):
     return np.mean((y_true - y_pred) ** 2)
 
-# -------------------------------
-# Plot placeholders
-# -------------------------------
-col1, col2 = st.columns(2)
+# ---------------------------------
+# Placeholders
+# ---------------------------------
+plot_area = st.empty()
+loss_area = st.empty()
 
-line_plot = col1.empty()
-param_plot = col2.empty()
-loss_plot = st.empty()
-
-m_history = []
-b_history = []
 loss_history = []
 
-# -------------------------------
+# ---------------------------------
 # Gradient Descent Animation
-# -------------------------------
+# ---------------------------------
 if run:
+
     for epoch in range(epochs):
 
-        # ---------------------------
-        # Gradient updates
-        # ---------------------------
+        # -----------------------------
+        # Gradient update
+        # -----------------------------
         if gd_type == "Batch":
-            y_pred = m * X + b
-            dm = (-2/n) * np.sum(X * (y - y_pred))
-            db = (-2/n) * np.sum(y - y_pred)
-            m -= learning_rate * dm
-            b -= learning_rate * db
+            y_hat = m * X + b
+            dm = (-2/n) * np.sum(X * (y - y_hat))
+            db = (-2/n) * np.sum(y - y_hat)
+            m -= lr * dm
+            b -= lr * db
 
         elif gd_type == "Stochastic":
             for i in range(n):
                 xi, yi = X[i], y[i]
-                y_pred = m * xi + b
-                dm = -2 * xi * (yi - y_pred)
-                db = -2 * (yi - y_pred)
-                m -= learning_rate * dm
-                b -= learning_rate * db
+                y_hat = m * xi + b
+                dm = -2 * xi * (yi - y_hat)
+                db = -2 * (yi - y_hat)
+                m -= lr * dm
+                b -= lr * db
 
         elif gd_type == "Mini-Batch":
             indices = np.random.permutation(n)
@@ -106,50 +102,50 @@ if run:
             for i in range(0, n, batch_size):
                 Xb = Xs[i:i+batch_size]
                 yb = ys[i:i+batch_size]
-                y_pred = m * Xb + b
-                dm = (-2/len(Xb)) * np.sum(Xb * (yb - y_pred))
-                db = (-2/len(Xb)) * np.sum(yb - y_pred)
-                m -= learning_rate * dm
-                b -= learning_rate * db
+                y_hat = m * Xb + b
+                dm = (-2/len(Xb)) * np.sum(Xb * (yb - y_hat))
+                db = (-2/len(Xb)) * np.sum(yb - y_hat)
+                m -= lr * dm
+                b -= lr * db
 
-        # ---------------------------
-        # Store history
-        # ---------------------------
-        m_history.append(m)
-        b_history.append(b)
-        loss_history.append(mse(y, m * X + b))
+        # -----------------------------
+        # Loss
+        # -----------------------------
+        loss = mse(y, m * X + b)
+        loss_history.append(loss)
 
-        # ---------------------------
-        # Plot line evolution
-        # ---------------------------
-        fig1, ax1 = plt.subplots()
-        ax1.scatter(X, y, label="Data")
-        ax1.plot(X, m * X + b, color="red", label="Current line")
-        ax1.plot(X, true_m * X + true_b, "--", color="green", label="True line")
-        ax1.set_title(f"Epoch {epoch + 1}")
-        ax1.legend()
-        line_plot.pyplot(fig1, width="stretch")
+        # -----------------------------
+        # Plot regression line (KEY PART)
+        # -----------------------------
+        fig, ax = plt.subplots()
 
-        # ---------------------------
-        # Plot m & b convergence
-        # ---------------------------
+        ax.scatter(X, y, color="blue", label="Data", alpha=0.7)
+
+        x_line = np.linspace(X.min() - 1, X.max() + 1, 100)
+        y_line = m * x_line + b
+
+        ax.plot(
+            x_line, y_line,
+            color="red",
+            linewidth=2,
+            label=f"Epoch {epoch}"
+        )
+
+        ax.set_title(f"Line after Epoch {epoch}")
+        ax.set_xlabel("X")
+        ax.set_ylabel("y")
+        ax.legend()
+
+        plot_area.pyplot(fig)
+
+        # -----------------------------
+        # Loss curve
+        # -----------------------------
         fig2, ax2 = plt.subplots()
-        ax2.plot(m_history, label="m (slope)")
-        ax2.plot(b_history, label="b (intercept)")
-        ax2.axhline(true_m, linestyle="--", color="gray")
-        ax2.axhline(true_b, linestyle=":", color="gray")
-        ax2.set_title("Parameter Convergence")
-        ax2.legend()
-        param_plot.pyplot(fig2, width="stretch")
+        ax2.plot(loss_history, color="purple")
+        ax2.set_title("Loss vs Epoch")
+        ax2.set_xlabel("Epoch")
+        ax2.set_ylabel("MSE")
+        loss_area.pyplot(fig2)
 
-        # ---------------------------
-        # Plot loss curve
-        # ---------------------------
-        fig3, ax3 = plt.subplots()
-        ax3.plot(loss_history, color="purple")
-        ax3.set_title("Loss (MSE)")
-        ax3.set_xlabel("Epoch")
-        ax3.set_ylabel("Loss")
-        loss_plot.pyplot(fig3, width="stretch")
-
-        time.sleep(0.1)
+        time.sleep(0.25)
