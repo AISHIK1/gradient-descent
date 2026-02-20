@@ -8,11 +8,12 @@ from sklearn.datasets import make_regression
 # Page config
 # ---------------------------------
 st.set_page_config(layout="wide")
-st.title("Gradient Descent Line Animation (Epoch by Epoch)")
+st.title("Gradient Descent – Line Movement Only")
 
 st.markdown("""
-This demo shows **how the regression line evolves after every update of**
-**m (slope)** and **b (intercept)** using Gradient Descent.
+This visualization shows **only the regression line moving**
+after each Gradient Descent update.
+The **data points never move**.
 """)
 
 # ---------------------------------
@@ -35,13 +36,13 @@ batch_size = st.sidebar.slider(
 )
 
 st.sidebar.subheader("Initial Line")
-m = st.sidebar.slider("Initial m", -50.0, 50.0, -30.0)
-b = st.sidebar.slider("Initial b", -200.0, 200.0, -100.0)
+m = st.sidebar.slider("Initial slope (m)", -50.0, 50.0, -30.0)
+b = st.sidebar.slider("Initial intercept (b)", -200.0, 200.0, -100.0)
 
 run = st.sidebar.button("▶ Run Gradient Descent")
 
 # ---------------------------------
-# Dataset (EXACTLY as requested)
+# Dataset (fixed)
 # ---------------------------------
 X, y = make_regression(
     n_samples=100,
@@ -57,6 +58,12 @@ y = y.flatten()
 n = len(X)
 
 # ---------------------------------
+# FIXED AXIS LIMITS (CRITICAL)
+# ---------------------------------
+x_min, x_max = X.min() - 1, X.max() + 1
+y_min, y_max = y.min() - 50, y.max() + 50
+
+# ---------------------------------
 # Loss function
 # ---------------------------------
 def mse(y_true, y_pred):
@@ -67,7 +74,6 @@ def mse(y_true, y_pred):
 # ---------------------------------
 plot_area = st.empty()
 loss_area = st.empty()
-
 loss_history = []
 
 # ---------------------------------
@@ -77,9 +83,7 @@ if run:
 
     for epoch in range(epochs):
 
-        # -----------------------------
-        # Gradient update
-        # -----------------------------
+        # -------- Gradient update --------
         if gd_type == "Batch":
             y_hat = m * X + b
             dm = (-2/n) * np.sum(X * (y - y_hat))
@@ -100,47 +104,46 @@ if run:
             indices = np.random.permutation(n)
             Xs, ys = X[indices], y[indices]
             for i in range(0, n, batch_size):
-                Xb = Xs[i:i+batch_size]
-                yb = ys[i:i+batch_size]
+                Xb = Xs[i:i + batch_size]
+                yb = ys[i:i + batch_size]
                 y_hat = m * Xb + b
-                dm = (-2/len(Xb)) * np.sum(Xb * (yb - y_hat))
-                db = (-2/len(Xb)) * np.sum(yb - y_hat)
+                dm = (-2 / len(Xb)) * np.sum(Xb * (yb - y_hat))
+                db = (-2 / len(Xb)) * np.sum(yb - y_hat)
                 m -= lr * dm
                 b -= lr * db
 
-        # -----------------------------
-        # Loss
-        # -----------------------------
+        # -------- Loss --------
         loss = mse(y, m * X + b)
         loss_history.append(loss)
 
-        # -----------------------------
-        # Plot regression line (KEY PART)
-        # -----------------------------
+        # -------- Plot (POINTS DO NOT MOVE) --------
         fig, ax = plt.subplots()
 
-        ax.scatter(X, y, color="blue", label="Data", alpha=0.7)
+        ax.scatter(X, y, color="blue", alpha=0.7, label="Data")
 
-        x_line = np.linspace(X.min() - 1, X.max() + 1, 100)
+        x_line = np.linspace(x_min, x_max, 200)
         y_line = m * x_line + b
 
         ax.plot(
-            x_line, y_line,
+            x_line,
+            y_line,
             color="red",
-            linewidth=2,
+            linewidth=3,
             label=f"Epoch {epoch}"
         )
 
-        ax.set_title(f"Line after Epoch {epoch}")
+        # LOCKED AXES (KEY FIX)
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+
+        ax.set_title(f"Regression Line – Epoch {epoch}")
         ax.set_xlabel("X")
         ax.set_ylabel("y")
         ax.legend()
 
         plot_area.pyplot(fig)
 
-        # -----------------------------
-        # Loss curve
-        # -----------------------------
+        # -------- Loss plot --------
         fig2, ax2 = plt.subplots()
         ax2.plot(loss_history, color="purple")
         ax2.set_title("Loss vs Epoch")
