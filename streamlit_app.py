@@ -4,21 +4,25 @@ import matplotlib.pyplot as plt
 import time
 from sklearn.datasets import make_regression
 
-# ---------------------------------
+# -------------------------------------------------
 # Page config
-# ---------------------------------
+# -------------------------------------------------
 st.set_page_config(layout="wide")
-st.title("Gradient Descent – Line Movement Only")
+st.title("Gradient Descent: Line Movement + Contour Plot")
 
 st.markdown("""
-This visualization shows **only the regression line moving**
-after each Gradient Descent update.
-The **data points never move**.
+This visualization shows:
+
+• **Left:** Regression line evolving step-by-step  
+• **Right:** Contour plot of loss J(m, b)  
+• The red dot on the contour shows the **current (m, b)**  
+
+Each animation step corresponds to **one gradient update**.
 """)
 
-# ---------------------------------
+# -------------------------------------------------
 # Sidebar controls
-# ---------------------------------
+# -------------------------------------------------
 st.sidebar.header("Controls")
 
 gd_type = st.sidebar.selectbox(
@@ -27,7 +31,7 @@ gd_type = st.sidebar.selectbox(
 )
 
 lr = st.sidebar.slider("Learning Rate (η)", 0.0001, 0.05, 0.01)
-epochs = st.sidebar.slider("Epochs", 1, 100, 30)
+steps = st.sidebar.slider("Steps (updates)", 5, 200, 50)
 
 batch_size = st.sidebar.slider(
     "Mini-Batch Size",
@@ -35,15 +39,15 @@ batch_size = st.sidebar.slider(
     disabled=(gd_type != "Mini-Batch")
 )
 
-st.sidebar.subheader("Initial Line")
-m = st.sidebar.slider("Initial slope (m)", -50.0, 50.0, -30.0)
-b = st.sidebar.slider("Initial intercept (b)", -200.0, 200.0, -100.0)
+st.sidebar.subheader("Initial Parameters")
+m = st.sidebar.slider("Initial m", -50.0, 50.0, -30.0)
+b = st.sidebar.slider("Initial b", -200.0, 200.0, -100.0)
 
 run = st.sidebar.button("▶ Run Gradient Descent")
 
-# ---------------------------------
+# -------------------------------------------------
 # Dataset (fixed)
-# ---------------------------------
+# -------------------------------------------------
 X, y = make_regression(
     n_samples=100,
     n_features=1,
@@ -57,36 +61,44 @@ X = X.flatten()
 y = y.flatten()
 n = len(X)
 
-# ---------------------------------
-# FIXED AXIS LIMITS (CRITICAL)
-# ---------------------------------
+# -------------------------------------------------
+# Fixed axis limits (CRITICAL)
+# -------------------------------------------------
 x_min, x_max = X.min() - 1, X.max() + 1
 y_min, y_max = y.min() - 50, y.max() + 50
 
-# ---------------------------------
+# -------------------------------------------------
 # Loss function
-# ---------------------------------
+# -------------------------------------------------
 def mse(y_true, y_pred):
     return np.mean((y_true - y_pred) ** 2)
 
-# ---------------------------------
-# Placeholders
-# ---------------------------------
-plot_area = st.empty()
-loss_area = st.empty()
-loss_history = []
+# -------------------------------------------------
+# Precompute contour surface (ONCE)
+# -------------------------------------------------
+m_vals = np.linspace(-50, 50, 100)
+b_vals = np.linspace(-200, 200, 100)
 
-# ---------------------------------
+M, B = np.meshgrid(m_vals, b_vals)
+Z = np.zeros_like(M)
+
+for i in range(M.shape[0]):
+    for j in range(M.shape[1]):
+        Z[i, j] = mse(y, M[i, j] * X + B[i, j])
+
+# -------------------------------------------------
+# Layout
+# -------------------------------------------------
+col1, col2 = st.columns(2)
+line_plot = col1.empty()
+contour_plot = col2.empty()
+
+# -------------------------------------------------
 # Gradient Descent Animation
-# ---------------------------------
-# ---------------------------------
-# Gradient Descent Animation (FIXED)
-# ---------------------------------
+# -------------------------------------------------
 if run:
 
-    step = 0  # visual step counter
-
-    while step < epochs:
+    for step in range(steps):
 
         # ---------- BATCH ----------
         if gd_type == "Batch":
@@ -95,18 +107,16 @@ if run:
             db = (-2/n) * np.sum(y - y_hat)
             m -= lr * dm
             b -= lr * db
-            step += 1
 
         # ---------- STOCHASTIC ----------
         elif gd_type == "Stochastic":
-            i = np.random.randint(0, n)   # ONE POINT ONLY
+            i = np.random.randint(n)
             xi, yi = X[i], y[i]
             y_hat = m * xi + b
             dm = -2 * xi * (yi - y_hat)
             db = -2 * (yi - y_hat)
             m -= lr * dm
             b -= lr * db
-            step += 1
 
         # ---------- MINI-BATCH ----------
         elif gd_type == "Mini-Batch":
@@ -117,29 +127,36 @@ if run:
             db = (-2/len(Xb)) * np.sum(yb - y_hat)
             m -= lr * dm
             b -= lr * db
-            step += 1
 
-        # ---------- LOSS ----------
-        loss = mse(y, m * X + b)
-        loss_history.append(loss)
-
-        # ---------- PLOT ----------
-        fig, ax = plt.subplots()
-        ax.scatter(X, y, color="blue", alpha=0.7)
+        # -------------------------------------------------
+        # LEFT: Regression line
+        # -------------------------------------------------
+        fig1, ax1 = plt.subplots()
+        ax1.scatter(X, y, color="blue", alpha=0.6)
 
         x_line = np.linspace(x_min, x_max, 200)
         y_line = m * x_line + b
+        ax1.plot(x_line, y_line, color="red", linewidth=3)
 
-        ax.plot(x_line, y_line, color="red", linewidth=3)
+        ax1.set_xlim(x_min, x_max)
+        ax1.set_ylim(y_min, y_max)
+        ax1.set_title(f"{gd_type} – Line (Step {step+1})")
+        ax1.set_xlabel("X")
+        ax1.set_ylabel("y")
 
-        ax.set_xlim(x_min, x_max)
-        ax.set_ylim(y_min, y_max)
+        line_plot.pyplot(fig1)
 
-        ax.set_title(f"{gd_type} Gradient Descent – Step {step}")
-        ax.set_xlabel("X")
-        ax.set_ylabel("y")
+        # -------------------------------------------------
+        # RIGHT: Contour plot
+        # -------------------------------------------------
+        fig2, ax2 = plt.subplots()
+        ax2.contour(M, B, Z, levels=30, cmap="viridis")
+        ax2.scatter(m, b, color="red", s=60)
 
-        plot_area.pyplot(fig)
+        ax2.set_title("Loss Contour J(m, b)")
+        ax2.set_xlabel("m (slope)")
+        ax2.set_ylabel("b (intercept)")
+
+        contour_plot.pyplot(fig2)
 
         time.sleep(0.25)
-
