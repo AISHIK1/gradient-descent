@@ -79,76 +79,67 @@ loss_history = []
 # ---------------------------------
 # Gradient Descent Animation
 # ---------------------------------
+# ---------------------------------
+# Gradient Descent Animation (FIXED)
+# ---------------------------------
 if run:
 
-    for epoch in range(epochs):
+    step = 0  # visual step counter
 
-        # -------- Gradient update --------
+    while step < epochs:
+
+        # ---------- BATCH ----------
         if gd_type == "Batch":
             y_hat = m * X + b
             dm = (-2/n) * np.sum(X * (y - y_hat))
             db = (-2/n) * np.sum(y - y_hat)
             m -= lr * dm
             b -= lr * db
+            step += 1
 
+        # ---------- STOCHASTIC ----------
         elif gd_type == "Stochastic":
-            for i in range(n):
-                xi, yi = X[i], y[i]
-                y_hat = m * xi + b
-                dm = -2 * xi * (yi - y_hat)
-                db = -2 * (yi - y_hat)
-                m -= lr * dm
-                b -= lr * db
+            i = np.random.randint(0, n)   # ONE POINT ONLY
+            xi, yi = X[i], y[i]
+            y_hat = m * xi + b
+            dm = -2 * xi * (yi - y_hat)
+            db = -2 * (yi - y_hat)
+            m -= lr * dm
+            b -= lr * db
+            step += 1
 
+        # ---------- MINI-BATCH ----------
         elif gd_type == "Mini-Batch":
-            indices = np.random.permutation(n)
-            Xs, ys = X[indices], y[indices]
-            for i in range(0, n, batch_size):
-                Xb = Xs[i:i + batch_size]
-                yb = ys[i:i + batch_size]
-                y_hat = m * Xb + b
-                dm = (-2 / len(Xb)) * np.sum(Xb * (yb - y_hat))
-                db = (-2 / len(Xb)) * np.sum(yb - y_hat)
-                m -= lr * dm
-                b -= lr * db
+            idx = np.random.choice(n, batch_size, replace=False)
+            Xb, yb = X[idx], y[idx]
+            y_hat = m * Xb + b
+            dm = (-2/len(Xb)) * np.sum(Xb * (yb - y_hat))
+            db = (-2/len(Xb)) * np.sum(yb - y_hat)
+            m -= lr * dm
+            b -= lr * db
+            step += 1
 
-        # -------- Loss --------
+        # ---------- LOSS ----------
         loss = mse(y, m * X + b)
         loss_history.append(loss)
 
-        # -------- Plot (POINTS DO NOT MOVE) --------
+        # ---------- PLOT ----------
         fig, ax = plt.subplots()
-
-        ax.scatter(X, y, color="blue", alpha=0.7, label="Data")
+        ax.scatter(X, y, color="blue", alpha=0.7)
 
         x_line = np.linspace(x_min, x_max, 200)
         y_line = m * x_line + b
 
-        ax.plot(
-            x_line,
-            y_line,
-            color="red",
-            linewidth=3,
-            label=f"Epoch {epoch}"
-        )
+        ax.plot(x_line, y_line, color="red", linewidth=3)
 
-        # LOCKED AXES (KEY FIX)
         ax.set_xlim(x_min, x_max)
         ax.set_ylim(y_min, y_max)
 
-        ax.set_title(f"Regression Line – Epoch {epoch}")
+        ax.set_title(f"{gd_type} Gradient Descent – Step {step}")
         ax.set_xlabel("X")
         ax.set_ylabel("y")
-        ax.legend()
 
         plot_area.pyplot(fig)
 
-        # -------- Loss plot --------
-        fig2, ax2 = plt.subplots()
-        ax2.plot(loss_history, color="purple")
-        ax2.set_title("Loss vs Epoch")
-        ax2.set_xlabel("Epoch")
-        ax2.set_ylabel("MSE")
-        loss_area.pyplot(fig2)
-
         time.sleep(0.25)
+
