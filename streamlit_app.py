@@ -1,151 +1,143 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
+import numpy as np
+import matplotlib.pyplot as plt
+import time
 
-# Set the title and favicon that appear in the Browser's tab bar.
+# -------------------------------
+# Page config
+# -------------------------------
 st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
+    page_title="Gradient Descent Animation",
+    layout="wide"
 )
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+st.title("📉 Gradient Descent Animation (Batch | Mini-Batch | Stochastic)")
+st.markdown("Visualizing **m**, **b**, and **loss** during training")
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+# -------------------------------
+# Sidebar controls
+# -------------------------------
+st.sidebar.header("⚙️ Controls")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
-
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
+gd_type = st.sidebar.selectbox(
+    "Select Gradient Descent Type",
+    ["Batch", "Mini-Batch", "Stochastic"]
 )
 
-''
-''
+learning_rate = st.sidebar.slider("Learning Rate", 0.001, 0.1, 0.01)
+epochs = st.sidebar.slider("Epochs", 10, 200, 50)
+batch_size = st.sidebar.slider("Mini-Batch Size", 2, 20, 5)
 
+animate = st.sidebar.button("▶ Run Animation")
 
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
+# -------------------------------
+# Generate dataset
+# -------------------------------
+np.random.seed(42)
+X = np.linspace(0, 10, 50)
+y = 2.5 * X + 3 + np.random.randn(50)
 
-st.header(f'GDP in {to_year}', divider='gray')
+# -------------------------------
+# Initialize parameters
+# -------------------------------
+m = 0.0
+b = 0.0
+n = len(X)
 
-''
+m_history = []
+b_history = []
+loss_history = []
 
-cols = st.columns(4)
+# -------------------------------
+# Loss function
+# -------------------------------
+def mse(y_true, y_pred):
+    return np.mean((y_true - y_pred) ** 2)
 
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
+# -------------------------------
+# Plot containers
+# -------------------------------
+col1, col2 = st.columns(2)
 
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
+line_plot = col1.empty()
+param_plot = col2.empty()
+loss_plot = st.empty()
 
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
-        else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+# -------------------------------
+# Gradient Descent Logic
+# -------------------------------
+if animate:
+    for epoch in range(epochs):
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+        if gd_type == "Batch":
+            y_pred = m * X + b
+            dm = (-2/n) * np.sum(X * (y - y_pred))
+            db = (-2/n) * np.sum(y - y_pred)
+
+            m -= learning_rate * dm
+            b -= learning_rate * db
+
+        elif gd_type == "Stochastic":
+            for i in range(n):
+                xi, yi = X[i], y[i]
+                y_pred = m * xi + b
+                dm = -2 * xi * (yi - y_pred)
+                db = -2 * (yi - y_pred)
+
+                m -= learning_rate * dm
+                b -= learning_rate * db
+
+        elif gd_type == "Mini-Batch":
+            indices = np.random.permutation(n)
+            X_shuffled = X[indices]
+            y_shuffled = y[indices]
+
+            for i in range(0, n, batch_size):
+                X_batch = X_shuffled[i:i+batch_size]
+                y_batch = y_shuffled[i:i+batch_size]
+
+                y_pred = m * X_batch + b
+                dm = (-2/len(X_batch)) * np.sum(X_batch * (y_batch - y_pred))
+                db = (-2/len(X_batch)) * np.sum(y_batch - y_pred)
+
+                m -= learning_rate * dm
+                b -= learning_rate * db
+
+        # -------------------------------
+        # Store history
+        # -------------------------------
+        m_history.append(m)
+        b_history.append(b)
+        loss_history.append(mse(y, m * X + b))
+
+        # -------------------------------
+        # Plot regression line
+        # -------------------------------
+        fig1, ax1 = plt.subplots()
+        ax1.scatter(X, y, label="Data")
+        ax1.plot(X, m * X + b, color="red", label="Model")
+        ax1.set_title(f"Epoch {epoch+1}")
+        ax1.legend()
+        line_plot.pyplot(fig1, width="stretch")
+
+        # -------------------------------
+        # Plot m and b
+        # -------------------------------
+        fig2, ax2 = plt.subplots()
+        ax2.plot(m_history, label="m (slope)")
+        ax2.plot(b_history, label="b (intercept)")
+        ax2.set_title("Parameter Convergence")
+        ax2.legend()
+        param_plot.pyplot(fig2, width="stretch")
+
+        # -------------------------------
+        # Plot loss
+        # -------------------------------
+        fig3, ax3 = plt.subplots()
+        ax3.plot(loss_history, color="purple")
+        ax3.set_title("Loss (MSE)")
+        ax3.set_xlabel("Epoch")
+        ax3.set_ylabel("Loss")
+        loss_plot.pyplot(fig3, width="stretch")
+
+        time.sleep(0.1)
